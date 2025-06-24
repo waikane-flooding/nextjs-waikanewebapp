@@ -31,7 +31,6 @@ export default function FloodRisk() {
 
   return (
     <div>
-      <h2>Flood Risk</h2>
       {/* Flood Risk Assessment Section */}
       <div className="component-card">
         <div className="card-header">

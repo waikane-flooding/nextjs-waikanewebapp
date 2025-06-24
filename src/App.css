@@ -128,7 +128,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   font-size: 1rem;
-  color: #333;
+  color: #fff !important;
   text-align: left;
   border-left: 4px solid transparent;
 }
@@ -142,7 +142,7 @@
 .menu-item.active {
   background: linear-gradient(135deg, rgba(0, 102, 204, 0.1), rgba(0, 168, 204, 0.1));
   border-left-color: #0066cc;
-  color: #0066cc;
+  color: #87ceeb !important; /* or any highlight color you want */
   font-weight: 600;
 }
 

@@ -31,7 +31,7 @@ const WaveMonitor = () => {
 
   return (
     <div className="wave-monitor">
-      <h2>Wave Monitor</h2>
+      {/* <h2>Wave Monitor</h2> */}
       <div className="component-card">
         <div className="card-header">
           <div className="card-icon">🌊</div>
