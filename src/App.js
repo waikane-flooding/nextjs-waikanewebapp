@@ -58,7 +58,7 @@ function App() {
         <div className="header-content">
           <div className="header-left">
             <h1 className="app-title">🌺 Windward O'ahu Monitor</h1>
-            <p className="app-subtitle">Real-time flood monitoring • Waikāne & Waihōle Streams</p>
+            <p className="app-subtitle">Real-time flood monitoring • Waikāne & Waiāhole Streams</p>
           </div>
           
           <div className="header-right">
