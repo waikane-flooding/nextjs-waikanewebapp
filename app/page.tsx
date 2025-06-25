@@ -8,10 +8,10 @@ import StreamMonitor from '../src/components/tabs/StreamMonitor';
 
 const TABS = [
   { label: 'Stream Monitor', component: <StreamMonitor /> },
-  { label: 'Flood Risk', component: <FloodRisk /> },
   { label: 'Tide Conditions', component: <TideConditions /> },
-  { label: 'Wave Monitor', component: <WaveMonitor /> },
+  { label: 'Flood Risk', component: <FloodRisk /> },
   { label: 'Weather Data', component: <WeatherData /> },
+  { label: 'Wave Monitor', component: <WaveMonitor /> },
 ];
 
 export default function Page() {
@@ -21,7 +21,7 @@ export default function Page() {
     <div>
       <header style={{ padding: '2rem 0 1rem 0', textAlign: 'center' }}>
         <h1 style={{
-          fontFamily: "'Poppins', sans-serif",
+          fontFamily: 'var(--font-inter), sans-serif',
           fontWeight: 700,
           fontSize: '2.5rem',
           color: '#fff',

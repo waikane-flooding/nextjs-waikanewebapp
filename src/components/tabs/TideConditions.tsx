@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import WaikaneTideLevel from '../WaikaneTideLevel';
+import WaikaneTideGraph from '../WaikaneTideGraph';
 
 const TideConditions = () => {
+  const [loading, setLoading] = useState(true);
   // Initialize with current date for nextHigh and nextLow
   const [tideData, setTideData] = useState({
     currentHeight: 0,
@@ -11,31 +14,62 @@ const TideConditions = () => {
   });
 
   useEffect(() => {
-    const generateTideData = () => {
-      const now = new Date();
-      
-      // Generate realistic tide data (Hawaiian tides typically range 0-3 feet)
-      const currentHeight = Math.sin(now.getTime() / 1000000) * 1.5 + 2;
-      const direction = Math.cos(now.getTime() / 1000000) > 0 ? 'rising' : 'falling';
-      
-      // Calculate next high/low times (simplified)
-      const nextHigh = new Date(now.getTime() + (6 * 60 * 60 * 1000)); // 6 hours from now
-      const nextLow = new Date(now.getTime() + (12 * 60 * 60 * 1000)); // 12 hours from now
-      
-      const status = currentHeight > 2.5 ? 'high' : currentHeight < 0.5 ? 'low' : 'normal';
-      
-      setTideData({
-        currentHeight,
-        direction,
-        nextHigh,
-        nextLow,
-        status
-      });
+    const fetchTideData = async () => {
+      try {
+        setLoading(true);
+        // Fetch curve for current height/direction
+        const curveRes = await fetch('http://localhost:5000/api/waikane_tide_curve');
+        const curveData = await curveRes.json();
+        // Fetch tides for next high/low
+        const tidesRes = await fetch('http://localhost:5000/api/waikane_tides');
+        const tidesData = await tidesRes.json();
+
+        // Get latest curve entry for current height
+        const now = new Date();
+        const pastCurves = curveData
+          .map((item: any) => ({
+            time: new Date(item["Datetime"]),
+            height: item["Predicted_ft_MSL"]
+          }))
+          .filter((d: any) => d.time <= now)
+          .sort((a: any, b: any) => b.time - a.time);
+        const latestCurve = pastCurves[0];
+
+        // Determine direction (rising/falling) by comparing to previous point
+        let direction = 'N/A';
+        if (pastCurves.length > 1) {
+          direction = latestCurve.height > pastCurves[1].height ? 'rising' : 'falling';
+        }
+
+        // Get next high and low tides from tidesData
+        const futureTides = tidesData
+          .map((item: any) => ({
+            time: new Date(item["Date Time"]),
+            type: item["Type"]
+          }))
+          .filter((d: any) => d.time > now)
+          .sort((a: any, b: any) => a.time - b.time);
+        const nextHigh = futureTides.find((d: any) => d.type === 'H');
+        const nextLow = futureTides.find((d: any) => d.type === 'L');
+
+        // Status logic
+        const status = latestCurve && latestCurve.height > 2.5 ? 'high' : latestCurve && latestCurve.height < 0.5 ? 'low' : 'normal';
+
+        setTideData({
+          currentHeight: latestCurve ? latestCurve.height : 0,
+          direction: direction,
+          nextHigh: nextHigh ? nextHigh.time : null,
+          nextLow: nextLow ? nextLow.time : null,
+          status: status
+        });
+      } catch (err) {
+        console.error('Failed to fetch tide data', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    generateTideData();
-    const interval = setInterval(generateTideData, 30000);
-    return () => clearInterval(interval);
+    fetchTideData();
   }, []);
 
   const formatTime = (date: Date | null) => {
@@ -61,52 +95,86 @@ const TideConditions = () => {
     }
   };
 
+  const LoadingSkeleton = () => (
+    <div className="data-grid">
+      <div className="data-item">
+        <div className="data-value loading-skeleton">--</div>
+        <div className="data-label">Current Height</div>
+      </div>
+      <div className="data-item">
+        <div className="data-value loading-skeleton">--</div>
+        <div className="data-label">Tide Direction</div>
+      </div>
+      <div className="data-item">
+        <div className="data-value loading-skeleton">--</div>
+        <div className="data-label">Next High Tide</div>
+      </div>
+      <div className="data-item">
+        <div className="data-value loading-skeleton">--</div>
+        <div className="data-label">Next Low Tide</div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="tide-conditions">
       <div className="component-card">
         <div className="card-header">
           <div className="card-icon">🌊</div>
           <div className="card-title">Current Tide Conditions - Kāne'ohe Bay</div>
+          {loading && <div className="loading-badge">Loading...</div>}
         </div>
         
-        <div className="data-grid">
-          <div className="data-item">
-            <div className="data-value">
-              {tideData.currentHeight.toFixed(1)} ft
+        {loading ? (
+          <LoadingSkeleton />
+        ) : (
+          <div className="data-grid">
+            <div className="data-item">
+              <div className="data-value">
+                {tideData.currentHeight.toFixed(2)} ft
+              </div>
+              <div className="data-label">Current Height</div>
             </div>
-            <div className="data-label">Current Height</div>
-          </div>
-          
-          <div className="data-item">
-            <div className="data-value">
-              {tideData.direction}
+            
+            <div className="data-item">
+              <div className="data-value">
+                {tideData.direction}
+              </div>
+              <div className="data-label">Tide Direction</div>
             </div>
-            <div className="data-label">Tide Direction</div>
-          </div>
-          
-          <div className="data-item">
-            <div className="data-value">
-              {formatTime(tideData.nextHigh)}
+            
+            <div className="data-item">
+              <div className="data-value">
+                {formatTime(tideData.nextHigh)}
+              </div>
+              <div className="data-label">Next High Tide</div>
             </div>
-            <div className="data-label">Next High Tide</div>
-          </div>
-          
-          <div className="data-item">
-            <div className="data-value">
-              {formatTime(tideData.nextLow)}
+            
+            <div className="data-item">
+              <div className="data-value">
+                {formatTime(tideData.nextLow)}
+              </div>
+              <div className="data-label">Next Low Tide</div>
             </div>
-            <div className="data-label">Next Low Tide</div>
           </div>
-        </div>
+        )}
         
-        <div className={`status-indicator status-${tideData.status === 'high' ? 'warning' : 'safe'}`}>
-          {getStatusIcon(tideData.status)} Tide Status: {tideData.status.toUpperCase()}
-        </div>
+        {!loading && (
+          <div className={`status-indicator status-${tideData.status === 'high' ? 'warning' : 'safe'}`}>
+            {getStatusIcon(tideData.status)} Tide Status: {tideData.status.toUpperCase()}
+          </div>
+        )}
         
-        <div className="chart-placeholder">
-          📊 24-Hour Tide Chart - Kāne'ohe Bay Station
-          <br />
-          <small>NOAA tide gauge data visualization</small>
+        <div style={{ 
+          display: 'flex', 
+          gap: '20px', 
+          justifyContent: 'center', 
+          alignItems: 'flex-start',
+          marginTop: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <WaikaneTideLevel />
+          <WaikaneTideGraph />
         </div>
       </div>
     </div>

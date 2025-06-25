@@ -1,5 +1,9 @@
 // components/StreamMonitor.js
 import React, { useState, useEffect } from 'react';
+import WaikaneStreamHeight from '../WaikaneStreamHeight';
+import WaikaneStreamGraph from '../WaikaneStreamGraph';
+import WaiaholeStreamHeight from '../WaiaholeStreamHeight';
+import WaiaholeStreamGraph from '../WaiaholeStreamGraph';
 
 const StreamMonitor = () => {
   type StreamStatus = 'safe' | 'warning' | 'danger';
@@ -14,6 +18,7 @@ const StreamMonitor = () => {
     waihole: StreamData;
   };
 
+  const [loading, setLoading] = useState(true);
   const [streamData, setStreamData] = useState<Streams>({
     waikane: {
       height: 0,
@@ -29,71 +34,80 @@ const StreamMonitor = () => {
     }
   });
 
-  // Mock data generation for demonstration
   useEffect(() => {
-    const generateMockData = () => {
-      const now = new Date();
-      
-      // Base heights (typical normal conditions)
-      const baseWaikane = 3.5;  // Normal range 2.0-6.0 ft
-      const baseWaihole = 2.5;  // Normal range 1.5-5.0 ft
-      
-      // Add variation using time-based sine wave + random component
-      const waikaneHeight = baseWaikane + 
-        (Math.sin(now.getTime() / 3600000) * 1.5) + // hourly variation
-        (Math.random() * 0.5); // small random fluctuation
-    
-      const waiholeHeight = baseWaihole + 
-        (Math.sin(now.getTime() / 3600000) * 1.0) + // hourly variation
-        (Math.random() * 0.3); // small random fluctuation
+    const fetchStreamData = async () => {
+      try {
+        setLoading(true);
+        const [waikaneRes, waiaholeRes] = await Promise.all([
+          fetch('http://localhost:5000/api/waikane_stream'),
+          fetch('http://localhost:5000/api/waiahole_stream')
+        ]);
+        const [waikaneData, waiaholeData] = await Promise.all([
+          waikaneRes.json(),
+          waiaholeRes.json()
+        ]);
 
-      // Ensure heights stay positive
-      const finalWaikaneHeight = Math.max(2.0, waikaneHeight);
-      const finalWaiholeHeight = Math.max(1.5, waiholeHeight);
-    
-      // Determine status based on height
-      const getStatus = (height: number, isWaikane: boolean): StreamStatus => {
-        const floodStage = isWaikane ? 10.0 : 8.0;
-        const warningStage = isWaikane ? 7.0 : 6.0;
-      
-        if (height > floodStage) return 'danger';
-        if (height > warningStage) return 'warning';
-        return 'safe';
-      };
+        // Helper to get latest valid reading
+        const getLatest = (data: any[]) => {
+          const now = new Date();
+          return data
+            .filter((d: any) => d.ft != null && d.DateTime)
+            .map((d: any) => ({
+              time: new Date(d.DateTime),
+              value: d.ft
+            }))
+            .filter((d: any) => d.time <= now)
+            .sort((a: any, b: any) => b.time - a.time)[0];
+        };
 
-      setStreamData({
-        waikane: {
-          height: finalWaikaneHeight,
-          flow: finalWaikaneHeight * 15,
-          status: getStatus(finalWaikaneHeight, true),
-          lastReading: now
-        },
-        waihole: {
-          height: finalWaiholeHeight,
-          flow: finalWaiholeHeight * 12,
-          status: getStatus(finalWaiholeHeight, false),
-          lastReading: now
+        const waikaneLatest = getLatest(waikaneData);
+        const waiaholeLatest = getLatest(waiaholeData);
+
+        // Status logic (adjust thresholds as needed)
+        const getStatus = (height: number, isWaikane: boolean): StreamStatus => {
+          if (isWaikane) {
+            if (height > 10.8) return 'danger';
+            if (height > 7) return 'warning';
+            return 'safe';
+          } else {
+            if (height > 16.4) return 'danger';
+            if (height > 12) return 'warning';
+            return 'safe';
+          }
+        };
+
+        setStreamData({
+          waikane: {
+            height: waikaneLatest ? waikaneLatest.value : 0,
+            flow: waikaneLatest ? waikaneLatest.value * 15 : 0,
+            status: waikaneLatest ? getStatus(waikaneLatest.value, true) : 'safe',
+            lastReading: waikaneLatest ? waikaneLatest.time : null
+          },
+          waihole: {
+            height: waiaholeLatest ? waiaholeLatest.value : 0,
+            flow: waiaholeLatest ? waiaholeLatest.value * 12 : 0,
+            status: waiaholeLatest ? getStatus(waiaholeLatest.value, false) : 'safe',
+            lastReading: waiaholeLatest ? waiaholeLatest.time : null
+          }
+        });
+
+        // Show emergency banner if either stream is high
+        const emergencyBanner = document.getElementById('emergencyBanner');
+        if (emergencyBanner) {
+          if ((waikaneLatest && waikaneLatest.value > 10) || (waiaholeLatest && waiaholeLatest.value > 12)) {
+            emergencyBanner.style.display = 'block';
+          } else {
+            emergencyBanner.style.display = 'none';
+          }
         }
-      });
-
-      // Show emergency banner if either stream is high
-      const emergencyBanner = document.getElementById('emergencyBanner');
-      if (emergencyBanner) {
-        if (waikaneHeight > 10 || waiholeHeight > 10) {
-          emergencyBanner.style.display = 'block';
-        } else {
-          emergencyBanner.style.display = 'none';
-        }
+      } catch (err) {
+        console.error('Failed to fetch stream data', err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    // Initial load
-    generateMockData();
-    
-    // Update more frequently (every 10 seconds)
-    const interval = setInterval(generateMockData, 10000);
-    
-    return () => clearInterval(interval);
+    fetchStreamData();
   }, []);
 
   const getStatusIcon = (status: string) => {
@@ -104,12 +118,10 @@ const StreamMonitor = () => {
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'danger': return 'HIGH WATER - AVOID AREA';
-      case 'warning': return 'Elevated levels - Use caution';
-      default: return 'Normal levels';
-    }
+  const getStatusText = (status: string, isWaikane: boolean) => {
+    if (status === 'danger') return 'HIGH WATER - AVOID AREA';
+    if (status === 'warning') return 'Elevated levels - Use caution';
+    return 'Normal levels';
   };
 
   const formatTime = (date: Date | null) => {
@@ -120,6 +132,23 @@ const StreamMonitor = () => {
     });
   };
 
+  const LoadingSkeleton = () => (
+    <div className="data-grid">
+      <div className="data-item">
+        <div className="data-value loading-skeleton">--</div>
+        <div className="data-label">Current Height</div>
+      </div>
+      <div className="data-item">
+        <div className="data-value loading-skeleton">--</div>
+        <div className="data-label">Last Reading</div>
+      </div>
+      <div className="data-item">
+        <div className="data-value loading-skeleton">--</div>
+        <div className="data-label">Status</div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="stream-monitor">
       {/* Waikāne Stream Monitor */}
@@ -127,49 +156,46 @@ const StreamMonitor = () => {
         <div className="card-header">
           <div className="card-icon">🏞️</div>
           <div className="card-title">Waikāne Stream Monitor</div>
+          {loading && <div className="loading-badge">Loading...</div>}
         </div>
         
-        <div className="data-grid">
-          <div className="data-item">
-            <div className="data-value">
-              {streamData.waikane.height.toFixed(1)} ft
+        {loading ? (
+          <LoadingSkeleton />
+        ) : (
+          <div className="data-grid">
+            <div className="data-item">
+              <div className="data-value">
+                {streamData.waikane.height.toFixed(2)} ft
+              </div>
+              <div className="data-label">Current Height</div>
             </div>
-            <div className="data-label">Current Height</div>
-          </div>
-          
-          {/* Commenting out Flow Rate
-          <div className="data-item">
-            <div className="data-value">
-              {streamData.waikane.flow.toFixed(0)} cfs
+            
+            <div className="data-item">
+              <div className="data-value">
+                {formatTime(streamData.waikane.lastReading)}
+              </div>
+              <div className="data-label">Last Reading</div>
             </div>
-            <div className="data-label">Flow Rate</div>
-          </div>
-          */}
-          
-          <div className="data-item">
-            <div className="data-value">
-              {formatTime(streamData.waikane.lastReading)}
+            
+            <div className="data-item">
+              <div className="data-value">
+                {getStatusIcon(streamData.waikane.status)}
+              </div>
+              <div className="data-label">Status</div>
             </div>
-            <div className="data-label">Last Reading</div>
           </div>
-          
-          <div className="data-item">
-            <div className="data-value">
-              {getStatusIcon(streamData.waikane.status)}
-            </div>
-            <div className="data-label">Status</div>
-          </div>
-        </div>
+        )}
         
-        <div className={`status-indicator status-${streamData.waikane.status}`}>
-          {getStatusIcon(streamData.waikane.status)} {getStatusText(streamData.waikane.status)}
-        </div>
+        {!loading && (
+          <div className={`status-indicator status-${streamData.waikane.status}`}>
+            {getStatusIcon(streamData.waikane.status)} {getStatusText(streamData.waikane.status, true)}
+          </div>
+        )}
         
-        {/* Live Chart Placeholder */}
-        <div className="chart-placeholder">
-          📊 Waikāne Stream Height Chart (24 hours)
-          <br />
-          <small>Real-time USGS gauge data visualization</small>
+        {/* Live Chart Components - Side by Side */}
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '20px' }}>
+          <WaikaneStreamHeight />
+          <WaikaneStreamGraph />
         </div>
       </div>
 
@@ -178,84 +204,48 @@ const StreamMonitor = () => {
         <div className="card-header">
           <div className="card-icon">🌊</div>
           <div className="card-title">Waiahōle Stream Monitor</div>
+          {loading && <div className="loading-badge">Loading...</div>}
         </div>
         
-        <div className="data-grid">
-          <div className="data-item">
-            <div className="data-value">
-              {streamData.waihole.height.toFixed(1)} ft
+        {loading ? (
+          <LoadingSkeleton />
+        ) : (
+          <div className="data-grid">
+            <div className="data-item">
+              <div className="data-value">
+                {streamData.waihole.height.toFixed(2)} ft
+              </div>
+              <div className="data-label">Current Height</div>
             </div>
-            <div className="data-label">Current Height</div>
-          </div>
-          
-          {/* Commenting out Flow Rate
-          <div className="data-item">
-            <div className="data-value">
-              {streamData.waihole.flow.toFixed(0)} cfs
+            
+            <div className="data-item">
+              <div className="data-value">
+                {formatTime(streamData.waihole.lastReading)}
+              </div>
+              <div className="data-label">Last Reading</div>
             </div>
-            <div className="data-label">Flow Rate</div>
-          </div>
-          */}
-          
-          <div className="data-item">
-            <div className="data-value">
-              {formatTime(streamData.waihole.lastReading)}
+            
+            <div className="data-item">
+              <div className="data-value">
+                {getStatusIcon(streamData.waihole.status)}
+              </div>
+              <div className="data-label">Status</div>
             </div>
-            <div className="data-label">Last Reading</div>
           </div>
-          
-          <div className="data-item">
-            <div className="data-value">
-              {getStatusIcon(streamData.waihole.status)}
-            </div>
-            <div className="data-label">Status</div>
-          </div>
-        </div>
+        )}
         
-        <div className={`status-indicator status-${streamData.waihole.status}`}>
-          {getStatusIcon(streamData.waihole.status)} {getStatusText(streamData.waihole.status)}
-        </div>
+        {!loading && (
+          <div className={`status-indicator status-${streamData.waihole.status}`}>
+            {getStatusIcon(streamData.waihole.status)} {getStatusText(streamData.waihole.status, false)}
+          </div>
+        )}
         
-        {/* Live Chart Placeholder */}
-        <div className="chart-placeholder">
-          📊 Waiahōle Stream Height Chart (24 hours)
-          <br />
-          <small>Real-time USGS gauge data visualization</small>
+        {/* Live Chart Components - Side by Side */}
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '20px' }}>
+          <WaiaholeStreamHeight />
+          <WaiaholeStreamGraph />
         </div>
       </div>
-
-      {/* Commenting out Combined Overview 
-      <div className="component-card">
-        <div className="card-header">
-          <div className="card-icon">📊</div>
-          <div className="card-title">Stream Comparison Overview</div>
-        </div>
-        
-        <div className="comparison-grid">
-          <div className="comparison-item">
-            <h4>🏞️ Waikāne Stream</h4>
-            <div className="comparison-stats">
-              <span className="stat">Height: {streamData.waikane.height.toFixed(1)} ft</span>
-              <span className="stat">Flow: {streamData.waikane.flow.toFixed(0)} cfs</span>
-              <span className={`stat status-${streamData.waikane.status}`}>
-                {getStatusIcon(streamData.waikane.status)} {streamData.waikane.status.toUpperCase()}
-              </span>
-            </div>
-          </div>
-          
-          <div className="comparison-item">
-            <h4>🌊 Waihōle Stream</h4>
-            <div className="comparison-stats">
-              <span className="stat">Height: {streamData.waihole.height.toFixed(1)} ft</span>
-              <span className="stat">Flow: {streamData.waihole.flow.toFixed(0)} cfs</span>
-              <span className={`stat status-${streamData.waihole.status}`}>
-                {getStatusIcon(streamData.waihole.status)} {streamData.waihole.status.toUpperCase()}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-      */}
 
       {/* Stream Information */}
       <div className="component-card">

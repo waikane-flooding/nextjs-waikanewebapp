@@ -13,24 +13,23 @@
     "chartjs-plugin-annotation": "^3.1.0",
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",
+    "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-gauge-chart": "^0.5.1",
-    "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "concurrently \"npm run start:frontend\" \"npm run start:backend\"",
-    "start:frontend": "react-scripts start",
+    "start:frontend": "next dev",
     "start:backend": "cd backend && py api.py",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "build": "next build",
+    "test": "jest",
+    "lint": "next lint"
   },
   "eslintConfig": {
     "extends": [
-      "react-app",
-      "react-app/jest"
+      "next/core-web-vitals"
     ]
   },
   "browserslist": {
@@ -46,6 +45,11 @@
     ]
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@types/node": "24.0.4",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "concurrently": "^9.1.2",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0"
   }
 }

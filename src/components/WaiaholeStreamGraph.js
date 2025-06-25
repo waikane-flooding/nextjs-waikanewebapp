@@ -1,8 +1,34 @@
 import React, { useEffect, useRef } from 'react';
-import Chart from 'chart.js/auto';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale,
+  LineController,
+  ScatterController
+} from 'chart.js';
 import annotationPlugin from 'chartjs-plugin-annotation';
+import 'chartjs-adapter-date-fns';
 
-Chart.register(annotationPlugin);
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale,
+  LineController,
+  ScatterController,
+  annotationPlugin
+);
 
 const WaiaholeStreamGraph = () => {
   const chartRef = useRef(null);
@@ -175,7 +201,7 @@ const WaiaholeStreamGraph = () => {
           chartInstance.current.destroy();
         }
         const ctx = chartRef.current.getContext('2d');
-        chartInstance.current = new Chart(ctx, config);
+        chartInstance.current = new ChartJS(ctx, config);
       })
       .catch(err => console.error("Failed to load stream data", err));
 
